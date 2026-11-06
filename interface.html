@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=0.5, user-scalable=yes, viewport-fit=cover">
+    <title>Обогрев камеры ассистентов</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-text-size-adjust: 100%;
+            -moz-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        
+        html {
+            font-size: 16px;
+            height: 100%;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: manipulation;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+        
+        .container { 
+            width: 100%;
+            max-width: 500px;
+            min-width: 280px;
+            margin: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            padding: clamp(12px, 4vw, 20px); 
+            border-radius: clamp(16px, 5vw, 24px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3),
+                        0 1px 3px rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .compact-status-bar {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .status-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            min-width: 70px;
+        }
+        
+        .status-label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-value {
+            font-size: 13px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 6px;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .heater-on { background: rgba(46, 204, 113, 0.2); color: #2ecc71; }
+        .heater-off { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+        .mode-auto { background: rgba(52, 152, 219, 0.2); color: #3498db; }
+        .mode-manual { background: rgba(243, 156, 18, 0.2); color: #f39c12; }
+        .wifi-ap { background: rgba(155, 89, 182, 0.2); color: #9b59b6; }
+        .wifi-sta { background: rgba(26, 188, 156, 0.2); color: #1abc9c; }
+        
+        .header {
+            text-align: center;
+            margin-bottom: clamp(15px, 5vw, 20px);
+            padding-bottom: clamp(10px, 3vw, 12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: clamp(18px, 6vw, 22px);
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            letter-spacing: 0.5px;
+        }
+        
+        .header-subtitle {
+            margin-top: 5px;
+            font-size: clamp(12px, 3.5vw, 13px);
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .sensor-error {
+            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+            color: white;
+            padding: clamp(10px, 3vw, 12px);
+            border-radius: clamp(8px, 3vw, 10px);
+            margin: clamp(10px, 3vw, 12px) 0;
+            text-align: center;
+            font-size: clamp(12px, 3.5vw, 14px);
+            display: none;
+            animation: pulse 2s infinite;
+        }
+        
+        .data-display {
+            background: rgba(0, 0, 0, 0.3);
+            padding: clamp(15px, 5vw, 20px);
+            margin: clamp(15px, 5vw, 20px) 0;
+            border-radius: clamp(12px, 4vw, 16px);
+            text-align: center;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .data-display::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+        }
+        
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: clamp(15px, 4vw, 20px);
+        }
+        
+        .data-item {
+            position: relative;
+        }
+        
+        .data-value {
+            font-size: clamp(36px, 10vw, 60px);
+            font-weight: 800;
+            color: #ffffff;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.4);
+            line-height: 1;
+            margin: 5px 0;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        .data-label {
+            font-size: clamp(12px, 3.5vw, 13px);
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: clamp(5px, 2vw, 6px);
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        .control-buttons {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: clamp(12px, 4vw, 15px);
+            margin: clamp(15px, 5vw, 20px) 0;
+        }
+        
+        .control-btn {
+            padding: clamp(16px, 5vw, 20px);
+            border: none;
+            border-radius: clamp(12px, 4vw, 16px);
+            font-size: clamp(15px, 4vw, 16px);
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-height: 55px;
+            position: relative;
+            overflow: hidden;
+            user-select: none;
+        }
+        
+        .control-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .heater-btn {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            box-shadow: 0 8px 20px rgba(231, 76, 60, 0.3);
+        }
+        
+        .heater-btn.on {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            box-shadow: 0 8px 20px rgba(46, 204, 113, 0.3);
+        }
+        
+        /* Базовые стили для кнопки режима - по умолчанию автоматический режим */
+        .auto-btn {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            box-shadow: 0 8px 20px rgba(52, 152, 219, 0.3);
+        }
+        
+        /* Стили для кнопки в автоматическом режиме - явно указываем */
+        .control-btn.auto-btn.mode-auto {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+            color: white !important;
+            box-shadow: 0 8px 20px rgba(52, 152, 219, 0.3) !important;
+        }
+        
+        /* Стили для кнопки в ручном режиме - явно указываем */
+        .control-btn.auto-btn.mode-manual {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%) !important;
+            color: white !important;
+            box-shadow: 0 8px 20px rgba(243, 156, 18, 0.3) !important;
+        }
+        
+        .toggle-section {
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.9);
+            padding: clamp(15px, 4vw, 18px);
+            border-radius: clamp(10px, 3vw, 14px);
+            text-align: center;
+            cursor: pointer;
+            margin: clamp(10px, 3vw, 15px) 0;
+            font-size: clamp(14px, 4vw, 15px);
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-height: 45px;
+        }
+        
+        .toggle-section:active {
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(0.98);
+        }
+        
+        .section {
+            background: rgba(0, 0, 0, 0.3);
+            padding: clamp(15px, 4vw, 18px);
+            border-radius: clamp(10px, 3vw, 14px);
+            margin: clamp(10px, 3vw, 15px) 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: none;
+        }
+        
+        .section h2 {
+            margin: 0 0 clamp(12px, 4vw, 15px) 0;
+            font-size: clamp(16px, 4vw, 18px);
+            color: #ffffff;
+            text-align: center;
+            font-weight: 700;
+        }
+        
+        .section h3 {
+            margin: 20px 0 12px 0;
+            font-size: clamp(15px, 4vw, 16px);
+            color: #3498db;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 8px;
+        }
+        
+        .form-group {
+            margin-bottom: clamp(12px, 4vw, 15px);
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: clamp(13px, 4vw, 14px);
+            font-weight: 600;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: clamp(12px, 4vw, 15px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: clamp(8px, 3vw, 12px);
+            background: rgba(0, 0, 0, 0.3);
+            color: #ffffff;
+            font-size: clamp(14px, 4vw, 15px);
+            transition: all 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.3);
+        }
+        
+        .help-text {
+            font-size: clamp(12px, 3vw, 13px);
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 4px;
+            display: block;
+            font-style: italic;
+        }
+        
+        /* Стили для чекбокса */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .checkbox-label {
+            margin-left: 10px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+            flex-grow: 1;
+        }
+        
+        .checkbox-custom {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .checkbox-custom.checked {
+            background: #3498db;
+            border-color: #3498db;
+        }
+        
+        .checkbox-custom.checked::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .checkbox-input {
+            display: none;
+        }
+        
+        .select-network {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .select-network:hover {
+            background: rgba(52, 152, 219, 0.2);
+            border-color: #3498db;
+        }
+        
+        .network-name {
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+        
+        .network-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .scan-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .scan-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .scan-btn.scanning {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        }
+        
+        .scanning-text {
+            text-align: center;
+            color: #3498db;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        .btn-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: clamp(8px, 3vw, 12px);
+            margin-top: clamp(15px, 5vw, 20px);
+        }
+        
+        .btn {
+            padding: clamp(12px, 4vw, 15px);
+            border: none;
+            border-radius: clamp(8px, 3vw, 12px);
+            font-size: clamp(14px, 4vw, 15px);
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-height: 45px;
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .btn-save {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: white;
+        }
+        
+        .btn-reset {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+        }
+        
+        .btn-wifi {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+        }
+        
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #2ecc71;
+            box-shadow: 0 0 10px #2ecc71;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        .connection-status.offline {
+            background: #e74c3c;
+            box-shadow: 0 0 10px #e74c3c;
+            animation: blink 1.5s infinite;
+        }
+        
+        .connection-status.wifi-sta {
+            background: #9b59b6;
+            box-shadow: 0 0 10px #9b59b6;
+        }
+        
+        .connection-info {
+            background: rgba(52, 152, 219, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            padding: clamp(10px, 3vw, 12px);
+            border-radius: clamp(8px, 3vw, 10px);
+            margin: clamp(12px, 4vw, 15px) 0;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .connection-info.hidden {
+            display: none;
+        }
+        
+        .connection-info h3 {
+            margin: 0 0 6px 0;
+            font-size: clamp(14px, 4vw, 15px);
+            color: #3498db;
+        }
+        
+        .connection-info p {
+            margin: 4px 0;
+            font-size: clamp(12px, 3.5vw, 13px);
+            color: rgba(255, 255, 255, 0.7);
+            word-break: break-all;
+        }
+        
+        /* Новые стили для отображения пароля */
+        .password-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 5px;
+            z-index: 10;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .password-toggle:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Стили для уведомлений */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 90%;
+        }
+        
+        .notification.success {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+        }
+        
+        .notification.warning {
+            background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
+        }
+        
+        .notification.info {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        }
+        
+        .notification-icon {
+            font-size: 20px;
+        }
+        
+        .notification-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        @keyframes valueChange {
+            0% { transform: scale(1); color: #ffffff; }
+            50% { transform: scale(1.05); color: #3498db; }
+            100% { transform: scale(1); color: #ffffff; }
+        }
+        
+        .value-changing {
+            animation: valueChange 0.5s ease;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        @media (min-width: 768px) {
+            .compact-status-bar {
+                font-size: 13px;
+                padding: 10px 15px;
+            }
+            
+            .status-icon {
+                min-width: 80px;
+            }
+            
+            .data-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .control-buttons {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus"></div>
+    
+    <div class="container">
+        <div class="compact-status-bar">
+            <div class="status-icon">
+                <div class="status-label">Обогрев</div>
+                <div class="status-value" id="heaterStatusText">Выкл</div>
+            </div>
+            <div class="status-icon">
+                <div class="status-label">Режим</div>
+                <div class="status-value" id="modeStatusText">Авто</div>
+            </div>
+            <div class="status-icon">
+                <div class="status-label">WiFi</div>
+                <div class="status-value" id="wifiModeText">AP</div>
+            </div>
+        </div>
+        
+        <div class="header">
+            <h1>Обогрев камеры ассистентов</h1>
+            <div class="header-subtitle" id="wifiStatus">Точка доступа</div>
+        </div>
+        
+        <div class="sensor-error" id="sensorError">
+            ❌ Ошибка датчика температуры/влажности
+        </div>
+        
+        <div id="connectionInfo" class="connection-info">
+            <h3>📶 Подключено к сети WiFi</h3>
+            <p id="staNetwork"></p>
+            <p id="staIP"></p>
+        </div>
+        
+        <div class="data-display">
+            <div class="data-grid">
+                <div class="data-item">
+                    <div class="data-value" id="temp">0.0</div>
+                    <span class="data-label">Температура °C</span>
+                </div>
+                
+                <div class="data-item">
+                    <div class="data-value" id="hum">0.0</div>
+                    <span class="data-label">Влажность %</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="control-buttons">
+            <button id="heaterButton" class="control-btn heater-btn">
+                <span id="heaterButtonText">Включить обогрев</span>
+            </button>
+            
+            <button id="autoButton" class="control-btn auto-btn">
+                <span id="autoButtonText">Автоматический/Ручной режим</span>
+            </button>
+        </div>
+        
+        <div class="toggle-section" id="toggleCalibration">
+            <span>⚙️ Калибровка</span>
+        </div>
+        
+        <div id="calibrationSection" class="section">
+            <h2>Калибровка системы</h2>
+            
+            <!-- Калибровка датчика температуры/влажности -->
+            <h3>📊 Калибровка датчика</h3>
+            <div class="form-group">
+                <label class="form-label">Коррекция температуры (°C)</label>
+                <input type="number" step="0.1" min="-10" max="10" 
+                       id="tempOffset" class="form-input" placeholder="0.0">
+                <span class="help-text">Добавить или вычесть значение для коррекции температуры</span>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Коррекция влажности (%)</label>
+                <input type="number" step="0.1" min="-20" max="20" 
+                       id="humOffset" class="form-input" placeholder="0.0">
+                <span class="help-text">Добавить или вычесть значение для коррекции влажности</span>
+            </div>
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-save" id="applySensorCalibrationBtn">Применить коррекцию</button>
+            </div>
+            
+            <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 20px 0;"></div>
+            
+            <!-- Калибровка порогов срабатывания -->
+            <h3>⚡ Пороги срабатывания обогрева</h3>
+            <form id="calibrationForm">
+                <div class="form-group">
+                    <label class="form-label">Температура включения (≤ °C)</label>
+                    <input type="number" step="0.1" min="-30" max="15" 
+                           id="tempThreshold" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Влажность включения (≥ %)</label>
+                    <input type="number" step="0.1" min="0" max="100" 
+                           id="humThreshold" class="form-input" required>
+                </div>
+                
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-save">Сохрать пороги</button>
+                    <button type="button" class="btn btn-reset" id="resetCalibrationBtn">Сброс</button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="toggle-section" id="toggleWiFi">
+            <span>📶 Настройки WiFi</span>
+        </div>
+        
+        <div id="wifiSection" class="section">
+            <h2>Настройки WiFi сети</h2>
+            
+            <div class="form-group">
+                <label class="form-label">Режим работы</label>
+                <select id="wifiMode" class="form-input">
+                    <option value="ap">Точка доступа</option>
+                    <option value="sta">Подключение к сети</option>
+                </select>
+            </div>
+            
+            <div id="staConfig" class="hidden">
+                <div class="form-group">
+                    <label class="form-label">Название сети (SSID)</label>
+                    <button class="scan-btn" id="scanNetworksBtn">🔍 Сканировать сети</button>
+                    <div class="scanning-text hidden" id="scanningText">Сканирование сетей... (15-20 сек)</div>
+                    <div id="networksList"></div>
+                    <input type="text" id="staSSID" class="form-input" placeholder="Или введите название сети вручную">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Пароль WiFi</label>
+                    <div class="password-container">
+                        <input type="password" id="staPassword" class="form-input" placeholder="Пароль от WiFi">
+                        <button type="button" class="password-toggle" id="togglePasswordBtn">🔵</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="apConfig">
+                <div class="form-group">
+                    <label class="form-label">Название точки доступа</label>
+                    <input type="text" id="apSSID" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Пароль точки доступа</label>
+                    <div class="password-container">
+                        <input type="password" id="apPassword" class="form-input" value="12345678">
+                        <button type="button" class="password-toggle" id="toggleApPasswordBtn">🔵</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- ЧЕКБОКС ДЛЯ СКРЫТИЯ ИНФОРМАЦИИ -->
+            <div class="checkbox-group">
+                <input type="checkbox" id="hideConnectionInfo" class="checkbox-input">
+                <div class="checkbox-custom" id="hideConnectionInfoCheckbox"></div>
+                <label for="hideConnectionInfo" class="checkbox-label">
+                    Скрыть информацию
+                </label>
+            </div>
+            
+            <!-- ОБНОВЛЕННАЯ ГРУППА КНОПОК -->
+            <div class="btn-group">
+                <button type="button" class="btn btn-save" id="saveWiFiBtn">Подключить</button>
+                <button type="button" class="btn btn-wifi" id="restartWiFiBtn">Перезапустить</button>
+                <button type="button" class="btn btn-reset" id="resetWiFiBtn">Сбросить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let heaterEnabled = false;
+        let isAutoMode = true;
+        let lastUpdate = Date.now();
+        let connectionValid = true;
+        let wifiMode = 'ap';
+        let staConnected = false;
+        let staIP = '';
+        let staNetwork = '';
+        let currentSSID = '';
+        let scanCheckInterval = null;
+        let hideConnectionInfo = false;
+        let showPassword = false;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("Документ загружен, инициализация...");
+            
+            // Инициализация кнопки произойдет через updateStatusDisplay() после загрузки данных
+            
+            loadInitialData();
+            setupEventListeners();
+            startDataUpdates();
+            startConnectionCheck();
+            autoOpenPortal();
+        });
+        
+        function loadInitialData() {
+            console.log("Загрузка начальных данных...");
+            
+            // Инициализация кнопки произойдет через updateStatusDisplay() после загрузки данных
+            
+            fetch('/data')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Данные получены:", data);
+                    updateAllData(data);
+                    loadCalibrationParams(data.calibrationParams);
+                    updateWifiInfo(data.wifiMode, data.staIP, data.staNetwork, data.currentSSID);
+                    // Загружаем настройку скрытия информации
+                    if (data.hideConnectionInfo !== undefined) {
+                        hideConnectionInfo = data.hideConnectionInfo;
+                        updateHideConnectionInfoUI();
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка загрузки:', error);
+                    updateConnectionStatus(false);
+                });
+        }
+        
+        function setupEventListeners() {
+            console.log("Настройка обработчиков событий...");
+            
+            const heaterBtn = document.getElementById('heaterButton');
+            const autoBtn = document.getElementById('autoButton');
+            
+            if (heaterBtn) {
+                heaterBtn.addEventListener('click', toggleHeater);
+                console.log("Кнопка обогрева добавлена");
+            } else {
+                console.error("Кнопка обогрева не найдена!");
+            }
+            
+            if (autoBtn) {
+                autoBtn.addEventListener('click', setAutoMode);
+                console.log("Кнопка авторежима добавлена");
+            } else {
+                console.error("Кнопка авторежима не найдена!");
+            }
+            
+            document.getElementById('toggleCalibration').addEventListener('click', () => 
+                toggleSection('calibrationSection'));
+            document.getElementById('toggleWiFi').addEventListener('click', () => 
+                toggleSection('wifiSection'));
+            
+            document.getElementById('calibrationForm').addEventListener('submit', saveCalibration);
+            document.getElementById('applySensorCalibrationBtn').addEventListener('click', applySensorCalibration);
+            document.getElementById('resetCalibrationBtn').addEventListener('click', resetCalibration);
+            document.getElementById('wifiMode').addEventListener('change', handleWifiModeChange);
+            document.getElementById('saveWiFiBtn').addEventListener('click', saveWiFiSettings);
+            document.getElementById('restartWiFiBtn').addEventListener('click', restartWiFi);
+            document.getElementById('resetWiFiBtn').addEventListener('click', resetWiFiConnection);
+            document.getElementById('scanNetworksBtn').addEventListener('click', startScan);
+            
+            // Обработчик для чекбокса скрытия информации
+            const hideCheckbox = document.getElementById('hideConnectionInfo');
+            const hideCheckboxCustom = document.getElementById('hideConnectionInfoCheckbox');
+            
+            hideCheckbox.addEventListener('change', function() {
+                hideConnectionInfo = this.checked;
+                hideCheckboxCustom.classList.toggle('checked', this.checked);
+                // Сохраняем настройку на сервере
+                saveHideConnectionInfoSetting();
+            });
+            
+            hideCheckboxCustom.addEventListener('click', function() {
+                hideCheckbox.checked = !hideCheckbox.checked;
+                hideCheckbox.dispatchEvent(new Event('change'));
+            });
+            
+            // Обработчик для кнопки показа пароля WiFi сети
+            const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+            const staPasswordInput = document.getElementById('staPassword');
+            
+            togglePasswordBtn.addEventListener('click', function() {
+                showPassword = !showPassword;
+                staPasswordInput.type = showPassword ? 'text' : 'password';
+                this.textContent = showPassword ? '⚪' : '🔵';
+            });
+            
+            // Обработчик для кнопки показа пароля точки доступа
+            const toggleApPasswordBtn = document.getElementById('toggleApPasswordBtn');
+            const apPasswordInput = document.getElementById('apPassword');
+            
+            toggleApPasswordBtn.addEventListener('click', function() {
+                const type = apPasswordInput.type === 'password' ? 'text' : 'password';
+                apPasswordInput.type = type;
+                this.textContent = type === 'text' ? '⚪' : '🔵';
+            });
+        }
+        
+        function startDataUpdates() {
+            console.log("Запуск обновления данных...");
+            setInterval(updateData, 1000);
+            
+            setInterval(() => {
+                fetch('/data')
+                    .then(response => response.json())
+                    .then(data => {
+                        updateAllData(data);
+                        updateWifiInfo(data.wifiMode, data.staIP, data.staNetwork, data.currentSSID);
+                        // Принудительно обновляем кнопку после каждого обновления данных
+                        updateStatusDisplay();
+                    });
+            }, 5000);
+        }
+        
+        function startConnectionCheck() {
+            setInterval(() => {
+                if (Date.now() - lastUpdate > 10000) {
+                    updateConnectionStatus(false);
+                }
+            }, 5000);
+        }
+        
+        function updateData() {
+            fetch('/data')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    updateAllData(data);
+                    updateConnectionStatus(true);
+                    lastUpdate = Date.now();
+                    // Принудительно обновляем кнопку после каждого обновления данных
+                    updateStatusDisplay();
+                })
+                .catch(error => {
+                    console.log('Ошибка подключения:', error.message);
+                    updateConnectionStatus(false);
+                });
+        }
+        
+        function updateAllData(data) {
+            updateValueWithAnimation('temp', data.temperature.toFixed(1));
+            updateValueWithAnimation('hum', data.humidity.toFixed(1));
+            
+            document.getElementById('sensorError').style.display = 
+                data.sensorConnected ? 'none' : 'block';
+            
+            // Обновляем состояние - по той же логике, что и для кнопки обогрева
+            heaterEnabled = data.heaterState;
+            isAutoMode = data.autoMode;
+            
+            updateStatusDisplay();
+        }
+        
+        function updateValueWithAnimation(elementId, newValue) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            
+            const currentValue = element.textContent;
+            
+            if (currentValue !== newValue) {
+                element.classList.add('value-changing');
+                element.textContent = newValue;
+                
+                setTimeout(() => {
+                    element.classList.remove('value-changing');
+                }, 500);
+            }
+        }
+        
+        function updateConnectionStatus(isConnected) {
+            const statusElement = document.getElementById('connectionStatus');
+            if (!statusElement) return;
+            
+            if (isConnected) {
+                statusElement.classList.remove('offline');
+                if (wifiMode === 'sta' && staConnected) {
+                    statusElement.classList.add('wifi-sta');
+                } else {
+                    statusElement.classList.remove('wifi-sta');
+                }
+                connectionValid = true;
+            } else {
+                statusElement.classList.add('offline');
+                connectionValid = false;
+            }
+        }
+        
+        function updateWifiInfo(mode, ip, network, currentSSIDValue) {
+            wifiMode = mode || 'ap';
+            staConnected = !!ip;
+            staIP = ip || '';
+            staNetwork = network || '';
+            currentSSID = currentSSIDValue || '';
+            
+            const wifiStatus = document.getElementById('wifiStatus');
+            const connectionInfo = document.getElementById('connectionInfo');
+            const wifiModeText = document.getElementById('wifiModeText');
+            const staNetworkEl = document.getElementById('staNetwork');
+            const staIPEl = document.getElementById('staIP');
+            
+            // ОБНОВЛЯЕМ ПОЛЯ НАСТРОЕК ТЕКУЩИМИ ДАННЫМИ
+            const wifiModeSelect = document.getElementById('wifiMode');
+            const staSSIDInput = document.getElementById('staSSID');
+            const apSSIDInput = document.getElementById('apSSID');
+            
+            if (wifiModeSelect) wifiModeSelect.value = wifiMode;
+            if (apSSIDInput) apSSIDInput.value = currentSSID;
+            
+            if (wifiMode === 'sta' && staConnected) {
+                if (wifiStatus) wifiStatus.textContent = `Подключено к ${network}`;
+                if (wifiModeText) {
+                    wifiModeText.textContent = 'STA';
+                    wifiModeText.className = 'status-value wifi-sta';
+                }
+                if (staSSIDInput) staSSIDInput.value = network;
+                
+                if (connectionInfo) {
+                    if (hideConnectionInfo) {
+                        connectionInfo.classList.add('hidden');
+                    } else {
+                        connectionInfo.classList.remove('hidden');
+                    }
+                }
+                if (staNetworkEl) staNetworkEl.textContent = `Сеть: ${network}`;
+                if (staIPEl) staIPEl.textContent = `IP: ${ip}`;
+            } else {
+                if (wifiStatus) wifiStatus.textContent = 'Точка доступа: ' + currentSSID;
+                if (wifiModeText) {
+                    wifiModeText.textContent = 'AP';
+                    wifiModeText.className = 'status-value wifi-ap';
+                }
+                if (staSSIDInput) staSSIDInput.value = '';
+                if (connectionInfo) connectionInfo.classList.add('hidden');
+            }
+            
+            updateConnectionStatus(true);
+        }
+        
+        function updateHideConnectionInfoUI() {
+            const hideCheckbox = document.getElementById('hideConnectionInfo');
+            const hideCheckboxCustom = document.getElementById('hideConnectionInfoCheckbox');
+            
+            if (hideCheckbox && hideCheckboxCustom) {
+                hideCheckbox.checked = hideConnectionInfo;
+                hideCheckboxCustom.classList.toggle('checked', hideConnectionInfo);
+            }
+            
+            // Обновляем отображение блока с информацией
+            const connectionInfo = document.getElementById('connectionInfo');
+            if (connectionInfo && wifiMode === 'sta' && staConnected) {
+                if (hideConnectionInfo) {
+                    connectionInfo.classList.add('hidden');
+                } else {
+                    connectionInfo.classList.remove('hidden');
+                }
+            }
+        }
+        
+        function updateStatusDisplay() {
+            const heaterStatus = document.getElementById('heaterStatusText');
+            const heaterButton = document.getElementById('heaterButton');
+            const heaterButtonText = document.getElementById('heaterButtonText');
+            const modeStatus = document.getElementById('modeStatusText');
+            const autoButton = document.getElementById('autoButton');
+            
+            console.log("updateStatusDisplay вызвана: isAutoMode =", isAutoMode);
+            
+            if (heaterStatus) {
+                if (heaterEnabled) {
+                    heaterStatus.textContent = 'Вкл';
+                    heaterStatus.className = 'status-value heater-on';
+                } else {
+                    heaterStatus.textContent = 'Выкл';
+                    heaterStatus.className = 'status-value heater-off';
+                }
+            }
+            
+            if (heaterButton && heaterButtonText) {
+                if (heaterEnabled) {
+                    heaterButton.className = 'control-btn heater-btn on';
+                    heaterButtonText.textContent = 'Выключить обогрев';
+                } else {
+                    heaterButton.className = 'control-btn heater-btn';
+                    heaterButtonText.textContent = 'Включить обогрев';
+                }
+            }
+            
+            if (modeStatus) {
+                if (isAutoMode) {
+                    modeStatus.textContent = 'Авто';
+                    modeStatus.className = 'status-value mode-auto';
+                } else {
+                    modeStatus.textContent = 'Ручной';
+                    modeStatus.className = 'status-value mode-manual';
+                }
+            }
+            
+            // Обновляем кнопку режима - по той же логике, что и кнопка обогрева
+            const autoButtonText = document.getElementById('autoButtonText');
+            if (autoButton && autoButtonText) {
+                if (isAutoMode) {
+                    // Автоматический режим - СИНИЙ
+                    autoButton.className = 'control-btn auto-btn mode-auto';
+                    autoButtonText.textContent = 'Автоматический/Ручной режим';
+                    autoButton.style.cssText = 'background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; box-shadow: 0 8px 20px rgba(52, 152, 219, 0.3);';
+                } else {
+                    // Ручной режим - ОРАНЖЕВЫЙ
+                    autoButton.className = 'control-btn auto-btn mode-manual';
+                    autoButtonText.textContent = 'Автоматический/Ручной режим';
+                    autoButton.style.cssText = 'background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; box-shadow: 0 8px 20px rgba(243, 156, 18, 0.3);';
+                }
+            } else {
+                console.error("❌ Кнопка autoButton или autoButtonText не найдена!");
+            }
+        }
+        
+        function toggleHeater() {
+            console.log("Кнопка обогрева нажата");
+            
+            fetch('/control?action=toggle')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Ответ на toggle:", data);
+                    if (data.success) {
+                        heaterEnabled = data.heaterState;
+                        isAutoMode = data.autoMode;
+                        updateStatusDisplay();
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    showNotification('Ошибка связи с устройством: ' + error.message, 'error');
+                });
+        }
+        
+        function setAutoMode() {
+            console.log("Кнопка авторежима нажата");
+            
+            fetch('/control?action=auto')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Ответ на auto:", data);
+                    if (data.success) {
+                        // Обновляем состояние сразу из ответа - по той же логике, что и toggleHeater
+                        heaterEnabled = data.heaterState;
+                        isAutoMode = data.autoMode;
+                        updateStatusDisplay();
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    showNotification('Ошибка связи с устройством: ' + error.message, 'error');
+                });
+        }
+        
+        function loadCalibrationParams(params) {
+            if (params) {
+                const tempInput = document.getElementById('tempThreshold');
+                const humInput = document.getElementById('humThreshold');
+                const tempOffsetInput = document.getElementById('tempOffset');
+                const humOffsetInput = document.getElementById('humOffset');
+                
+                if (tempInput) tempInput.value = params.tempThreshold.toFixed(1);
+                if (humInput) humInput.value = params.humThreshold.toFixed(1);
+                if (tempOffsetInput) tempOffsetInput.value = params.tempOffset.toFixed(1);
+                if (humOffsetInput) humOffsetInput.value = params.humOffset.toFixed(1);
+            }
+        }
+        
+        function applySensorCalibration() {
+            const tempOffset = document.getElementById('tempOffset').value;
+            const humOffset = document.getElementById('humOffset').value;
+            
+            if (!tempOffset || !humOffset) {
+                showNotification('Заполните все поля коррекции', 'warning');
+                return;
+            }
+            
+            if (!confirm('Применить коррекцию датчика? Изменения вступят в силу немедленно.')) {
+                return;
+            }
+            
+            const formData = new URLSearchParams();
+            formData.append('tempOffset', tempOffset);
+            formData.append('humOffset', humOffset);
+            
+            fetch('/sensorcalibrate', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    showNotification('Коррекция датчика применена!', 'success');
+                    // Обновляем данные через 1 секунду
+                    setTimeout(() => {
+                        loadInitialData();
+                    }, 1000);
+                } else {
+                    showNotification('Ошибка применения коррекции', 'error');
+                }
+            })
+            .catch(error => {
+                showNotification('Ошибка связи с устройством', 'error');
+            });
+        }
+        
+        function saveCalibration(event) {
+            event.preventDefault();
+            
+            const tempThreshold = document.getElementById('tempThreshold').value;
+            const humThreshold = document.getElementById('humThreshold').value;
+            
+            if (!tempThreshold || !humThreshold) {
+                showNotification('Заполните все поля', 'warning');
+                return;
+            }
+            
+            if (!confirm('Сохранить пороги срабатывания? Устройство перезагрузится.')) {
+                return;
+            }
+            
+            const formData = new URLSearchParams();
+            formData.append('tempThreshold', tempThreshold);
+            formData.append('humThreshold', humThreshold);
+            
+            fetch('/calibrate', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    showNotification('Пороги сохранены! Устройство перезагрузится.', 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    showNotification('Ошибка сохранения порогов', 'error');
+                }
+            })
+            .catch(error => {
+                showNotification('Ошибка связи с устройством', 'error');
+            });
+        }
+        
+        function resetCalibration() {
+            if (!confirm('Сбросить ВСЕ калибровочные параметры к заводским? Устройство перезагрузится.')) {
+                return;
+            }
+            
+            fetch('/resetcalibration')
+                .then(response => {
+                    if (response.ok) {
+                        showNotification('Вся калибровка сброшена! Устройство перезагрузится.', 'success');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        showNotification('Ошибка сброса калибровки', 'error');
+                    }
+                })
+                .catch(error => {
+                    showNotification('Ошибка связи с устройством', 'error');
+                });
+        }
+        
+        function handleWifiModeChange() {
+            const mode = document.getElementById('wifiMode').value;
+            const staConfig = document.getElementById('staConfig');
+            const apConfig = document.getElementById('apConfig');
+            
+            if (mode === 'sta') {
+                staConfig.classList.remove('hidden');
+                apConfig.classList.add('hidden');
+            } else {
+                staConfig.classList.add('hidden');
+                apConfig.classList.remove('hidden');
+            }
+        }
+        
+        function startScan() {
+            const scanBtn = document.getElementById('scanNetworksBtn');
+            const scanningText = document.getElementById('scanningText');
+            const networksList = document.getElementById('networksList');
+            
+            // Очищаем предыдущие результаты
+            networksList.innerHTML = '';
+            
+            // Показываем сообщение о сканировании
+            scanBtn.classList.add('scanning');
+            scanBtn.disabled = true;
+            scanBtn.textContent = 'Сканирование...';
+            scanningText.classList.remove('hidden');
+            
+            // Запускаем сканирование на сервере
+            fetch('/startscan')
+                .then(response => {
+                    if (!response.ok) throw new Error('Ошибка запуска сканирования');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        console.log('Сканирование запущено');
+                        // Начинаем опрашивать статус сканирования
+                        checkScanStatus();
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка запуска сканирования:', error);
+                    resetScanButton();
+                    networksList.innerHTML = '<div style="color: #e74c3c; text-align: center; padding: 10px;">Ошибка запуска сканирования</div>';
+                });
+        }
+        
+        function checkScanStatus() {
+            if (scanCheckInterval) {
+                clearInterval(scanCheckInterval);
+            }
+            
+            let attempts = 0;
+            const maxAttempts = 40; // 20 секунд (40 * 500ms)
+            
+            scanCheckInterval = setInterval(() => {
+                attempts++;
+                
+                fetch('/scanstatus')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.scanning) {
+                            // Сканирование еще продолжается
+                            if (attempts >= maxAttempts) {
+                                clearInterval(scanCheckInterval);
+                                scanTimeout();
+                            }
+                        } else if (data.success && data.networks) {
+                            // Сканирование завершено успешно
+                            clearInterval(scanCheckInterval);
+                            displayNetworks(data.networks);
+                        } else if (data.error) {
+                            // Ошибка сканирования
+                            clearInterval(scanCheckInterval);
+                            displayScanError(data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка проверки статуса:', error);
+                        if (attempts >= maxAttempts) {
+                            clearInterval(scanCheckInterval);
+                            scanTimeout();
+                        }
+                    });
+            }, 500); // Проверяем каждые 500ms
+        }
+        
+        function displayNetworks(networks) {
+            const scanBtn = document.getElementById('scanNetworksBtn');
+            const scanningText = document.getElementById('scanningText');
+            const networksList = document.getElementById('networksList');
+            
+            resetScanButton();
+            
+            if (networks.length > 0) {
+                networksList.innerHTML = '<div class="form-label">Доступные сети:</div>';
+                networks.forEach(network => {
+                    const networkDiv = document.createElement('div');
+                    networkDiv.className = 'select-network';
+                    
+                    // Формируем строку с уровнем сигнала
+                    let signalStrength = '📶';
+                    if (network.rssi >= -50) signalStrength = '📶 Отличный';
+                    else if (network.rssi >= -60) signalStrength = '📶 Хороший';
+                    else if (network.rssi >= -70) signalStrength = '📶 Средний';
+                    else signalStrength = '📶 Слабый';
+                    
+                    networkDiv.innerHTML = `
+                        <div class="network-name">${network.ssid}</div>
+                        <div class="network-info">
+                            <span>${signalStrength} (${network.rssi} dBm)</span>
+                            <span>${network.encryption}</span>
+                        </div>
+                    `;
+                    networkDiv.addEventListener('click', () => {
+                        document.getElementById('staSSID').value = network.ssid;
+                        document.getElementById('staPassword').focus();
+                    });
+                    networksList.appendChild(networkDiv);
+                });
+            } else {
+                networksList.innerHTML = '<div style="color: rgba(255,255,255,0.5); text-align: center; padding: 10px;">Сети не найдены</div>';
+            }
+        }
+        
+        function displayScanError(error) {
+            const scanBtn = document.getElementById('scanNetworksBtn');
+            const scanningText = document.getElementById('scanningText');
+            const networksList = document.getElementById('networksList');
+            
+            resetScanButton();
+            networksList.innerHTML = `<div style="color: #e74c3c; text-align: center; padding: 10px;">Ошибка: ${error}</div>`;
+        }
+        
+        function scanTimeout() {
+            const scanBtn = document.getElementById('scanNetworksBtn');
+            const scanningText = document.getElementById('scanningText');
+            const networksList = document.getElementById('networksList');
+            
+            resetScanButton();
+            networksList.innerHTML = '<div style="color: #f39c12; text-align: center; padding: 10px;">Таймаут сканирования</div>';
+        }
+        
+        function resetScanButton() {
+            const scanBtn = document.getElementById('scanNetworksBtn');
+            const scanningText = document.getElementById('scanningText');
+            
+            scanBtn.classList.remove('scanning');
+            scanBtn.disabled = false;
+            scanBtn.textContent = '🔍 Сканировать сети';
+            scanningText.classList.add('hidden');
+        }
+        
+        function saveWiFiSettings() {
+            const mode = document.getElementById('wifiMode').value;
+            const staSSID = document.getElementById('staSSID').value;
+            const staPassword = document.getElementById('staPassword').value;
+            const apSSID = document.getElementById('apSSID').value;
+            const apPassword = document.getElementById('apPassword').value;
+            
+            if (mode === 'sta' && (!staSSID || !staPassword)) {
+                showNotification('Заполните все поля для подключения к WiFi сети', 'warning');
+                return;
+            }
+            
+            if (!apSSID || !apPassword) {
+                showNotification('Заполните все поля для точки доступа', 'warning');
+                return;
+            }
+            
+            if (!confirm('Подключиться к новой сети WiFi? Устройство перезагрузится через 10 секунд.')) {
+                return;
+            }
+            
+            const formData = new URLSearchParams();
+            formData.append('mode', mode);
+            formData.append('staSSID', staSSID);
+            formData.append('staPassword', staPassword);
+            formData.append('apSSID', apSSID);
+            formData.append('apPassword', apPassword);
+            formData.append('hideConnectionInfo', hideConnectionInfo ? '1' : '0');
+            
+            fetch('/updatewifi', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.text();
+                } else {
+                    throw new Error('Ошибка подключения');
+                }
+            })
+            .then(responseText => {
+                if (responseText.includes('wrong_password')) {
+                    showNotification('Неправильный пароль WiFi сети', 'error');
+                } else if (responseText.includes('auth_failed')) {
+                    showNotification('Ошибка авторизации в WiFi сети', 'error');
+                } else if (responseText.includes('not_found')) {
+                    showNotification('WiFi сеть не найдена', 'error');
+                } else if (responseText.includes('connected') || responseText.includes('ap_mode')) {
+                    showNotification('Настройки WiFi сохранены! Устройство перезагрузится через 10 секунд.', 'success');
+                    // Показываем сообщение и даем время на перезагрузку
+                    setTimeout(() => {
+                        showNotification('Перезагружаемся...', 'info');
+                    }, 5000);
+                    
+                    setTimeout(() => {
+                        // Пробуем переподключиться к новому IP
+                        reconnectToNewIP();
+                    }, 10000);
+                } else {
+                    showNotification('Настройки WiFi сохранены!', 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка подключения:', error);
+                showNotification('Настройки сохранены. Устройство перезагрузится. Подключитесь к точке доступа для проверки.', 'info');
+                setTimeout(() => {
+                    window.location.href = 'http://192.168.4.1';
+                }, 5000);
+            });
+        }
+        
+        function reconnectToNewIP() {
+            // Сначала пробуем обновить страницу
+            window.location.reload();
+            
+            // Если не получилось, через 5 секунд пробуем перейти на точку доступа
+            setTimeout(() => {
+                window.location.href = 'http://192.168.4.1';
+            }, 5000);
+        }
+        
+        function resetWiFiConnection() {
+            if (!confirm('Сбросить текущее WiFi подключение и переключиться на точку доступа?')) {
+                return;
+            }
+            
+            fetch('/resetwifi')
+                .then(response => {
+                    if (response.ok) {
+                        showNotification('WiFi подключение сброшено! Устройство переключится на точку доступа.', 'success');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 3000);
+                    } else {
+                        showNotification('Ошибка сброса WiFi', 'error');
+                    }
+                })
+                .catch(error => {
+                    showNotification('Ошибка связи с устройством', 'error');
+                });
+        }
+        
+        function saveHideConnectionInfoSetting() {
+            const formData = new URLSearchParams();
+            formData.append('hideConnectionInfo', hideConnectionInfo ? '1' : '0');
+            
+            fetch('/savehideinfo', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    console.log('Настройка скрытия информации сохранена');
+                    // Обновляем отображение блока с информацией
+                    updateWifiInfo(wifiMode, staIP, staNetwork, currentSSID);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка сохранения настройки:', error);
+            });
+        }
+        
+        function restartWiFi() {
+            if (confirm('Перезапустить WiFi? Устройство будет недоступно 10-20 секунд.')) {
+                fetch('/restartwifi')
+                    .then(response => {
+                        if (response.ok) {
+                            showNotification('WiFi перезапускается...', 'info');
+                        }
+                    })
+                    .catch(error => {
+                        showNotification('Ошибка перезапуска WiFi', 'error');
+                    });
+            }
+        }
+        
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const isHidden = section.style.display === 'none';
+            
+            document.querySelectorAll('.section').forEach(s => {
+                s.style.display = 'none';
+            });
+            
+            section.style.display = isHidden ? 'block' : 'none';
+        }
+        
+        function autoOpenPortal() {
+            ['/generate_204', '/hotspot-detect.html', '/connecttest.txt', '/fwlink'].forEach(url => {
+                fetch(url).catch(() => {});
+            });
+        }
+        
+        // Функция для показа уведомлений
+        function showNotification(message, type = 'info') {
+            // Удаляем существующие уведомления
+            const existingNotifications = document.querySelectorAll('.notification');
+            existingNotifications.forEach(notification => {
+                notification.remove();
+            });
+            
+            // Создаем новое уведомление
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            
+            let icon = 'ℹ️';
+            if (type === 'error') icon = '❌';
+            if (type === 'success') icon = '✅';
+            if (type === 'warning') icon = '⚠️';
+            
+            notification.innerHTML = `
+                <span class="notification-icon">${icon}</span>
+                <span>${message}</span>
+                <button class="notification-close">×</button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Обработчик закрытия уведомления
+            const closeBtn = notification.querySelector('.notification-close');
+            closeBtn.addEventListener('click', () => {
+                notification.remove();
+            });
+            
+            // Автоматическое закрытие через 5 секунд
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
+

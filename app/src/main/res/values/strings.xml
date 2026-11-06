@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Обогрев камеры</string>
+    <string name="car_app_description">Управление системой обогрева камеры ассистентов. Мониторинг температуры и влажности, автоматическое и ручное управление обогревом.</string>
+</resources>
